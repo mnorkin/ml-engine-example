@@ -1,12 +1,17 @@
 import argparse
 import subprocess
 import tempfile
+import uuid
 
+import os
 import pandas as pd
 import numpy as np
 import tensorflow as tf
 from pprint import pprint
 from google.cloud import storage
+from tensorflow.python.lib.io import file_io
+
+storage_client = storage.Client()
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -62,15 +67,27 @@ def tf_confusion_metrics(model, actual_classes, session, feed_dict):
     print('Accuracy = ', accuracy)
 
 
+def copy_data_to_tmp(input_files):
+    """Copies data to /tmp/ and returns glob matching the files."""
+    files = []
+    for e in input_files:
+        for path in e.split(','):
+            files.extend(file_io.get_matching_files(path))
+
+    for path in files:
+        if not path.startswith('gs://'):
+            return input_files
+
+    tmp_path = os.path.join('/tmp/', str(uuid.uuid4()))
+    os.makedirs(tmp_path)
+    subprocess.check_call(['gsutil', '-m', '-q', 'cp', '-r'] + files + [tmp_path])
+    return tmp_path
+
+
 def get_data(name):
-    data_dir = tempfile.mkdtemp()
     file_name = ".".join((name, "json"))
     file_path = "/".join((FLAGS.data_dir, file_name))
-    command = 'gsutil -m -q cp -r '+ file_path + " " + data_dir
-    pprint(command)
-    subprocess.check_call(command)
-    pprint(data_dir)
-    return pd.read_json(file_path, typ='series')
+    return pd.read_json(copy_data_to_tmp(file_path), typ='series')
 
 
 def run_training():

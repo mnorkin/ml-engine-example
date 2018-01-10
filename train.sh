@@ -11,7 +11,7 @@ echo "PROJECT: $PROJECT_ID, JOB_NAME: $JOB_NAME, JOB_DIR: $JOB_DIR"
 
 echo "Copy data"
 
-#gsutil -m cp -r data ${DATA_DIR}
+gsutil -m cp -r data ${DATA_DIR}
 
 gcloud ml-engine jobs submit training ${JOB_NAME} \
     --job-dir ${JOB_DIR} \
