@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PROJECT_ID="wixpre"
+PROJECT_ID="ml-finances"
 JOB_NAME="test_$(date +%Y%m%d_%H%M%S)"
 JOB_DIR="gs://$PROJECT_ID-ml/$JOB_NAME"
 TRAINER_PACKAGE_PATH="./trainer"
