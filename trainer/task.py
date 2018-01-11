@@ -1,6 +1,5 @@
 import argparse
 import subprocess
-import tempfile
 import uuid
 
 import os
@@ -8,10 +7,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from pprint import pprint
-from google.cloud import storage
 from tensorflow.python.lib.io import file_io
-
-storage_client = storage.Client()
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -67,27 +63,39 @@ def tf_confusion_metrics(model, actual_classes, session, feed_dict):
     print('Accuracy = ', accuracy)
 
 
-def copy_data_to_tmp(input_files):
+def copy_data_to_tmp(input_file):
     """Copies data to /tmp/ and returns glob matching the files."""
     files = []
-    for e in input_files:
-        for path in e.split(','):
-            files.extend(file_io.get_matching_files(path))
+    files.extend(file_io.get_matching_files(input_file))
 
+    print files
     for path in files:
         if not path.startswith('gs://'):
-            return input_files
+            return input_file
+
+    print [x[0] for x in os.walk("/tmp")]
 
     tmp_path = os.path.join('/tmp/', str(uuid.uuid4()))
+    print "tmp_path: {}".format(tmp_path)
+
+    action = ['gsutil', '-m', '-q', 'cp', '-r'] + files + [tmp_path]
+
+    print "action: {}".format(action)
+
     os.makedirs(tmp_path)
-    subprocess.check_call(['gsutil', '-m', '-q', 'cp', '-r'] + files + [tmp_path])
+    subprocess.check_call(action)
     return tmp_path
 
 
 def get_data(name):
     file_name = ".".join((name, "json"))
-    file_path = "/".join((FLAGS.data_dir, file_name))
-    return pd.read_json(copy_data_to_tmp(file_path), typ='series')
+    tmp_path = copy_data_to_tmp("/".join((FLAGS.data_dir, file_name)))
+    file_path = "/".join((tmp_path, file_name))
+
+    print "tmp_path: {}".format(tmp_path)
+    print "file_path: {}".format(file_path)
+    print "file exists? {}".format(os.path.isfile(file_path))
+    return pd.read_json(file_path, typ='series')
 
 
 def run_training():
@@ -97,10 +105,12 @@ def run_training():
     indexes = ['snp', 'nyse', 'djia', 'nikkei', 'hangseng', 'ftse', 'dax', 'aord']
 
     for index in indexes:
+        print "Get data for {}".format(index)
         closing_data['{}_close'.format(index)] = get_data(index)
 
     closing_data = closing_data.fillna(method='ffill')
 
+    print "Forming closing data"
     for index in indexes:
         closing_data['{}_close_scaled'.format(index)] = closing_data['{}_close'.format(index)] / max(closing_data['{}_close'.format(index)])
 
@@ -117,6 +127,7 @@ def run_training():
     log_return_data['snp_log_return_negative'] = 0
     log_return_data.loc[log_return_data['snp_log_return'] < 0, 'snp_log_return_negative'] = 1
 
+    print "Forming training test data frames"
     training_test_data = pd.DataFrame(columns=[
         'snp_log_return_positive',
         'snp_log_return_negative',
@@ -176,6 +187,7 @@ def run_training():
             'aord_log_return_2': log_return_data['aord_log_return'].iloc[i-2]
         }, ignore_index=True)
 
+    print "Describing the data set"
     predictors_tf = training_test_data[training_test_data.columns[2:]]
     classes_tf = training_test_data[training_test_data.columns[:2]]
 
@@ -187,6 +199,7 @@ def run_training():
     test_predictors_tf = predictors_tf[training_set_size:]
     test_classes_tf = classes_tf[training_set_size:]
 
+    print "Initialize session.."
     sess = tf.Session()
 
     num_predictors = len(training_predictors_tf.columns)
@@ -215,11 +228,14 @@ def run_training():
     init = tf.initialize_all_variables()
     sess.run(init)
 
+    print "Start training..."
     for i in range(1, 30001):
         sess.run(training_step, feed_dict={
             feature_data: training_predictors_tf.values,
             actual_classes: training_classes_tf.values.reshape(len(training_classes_tf.values), 2)
         })
+
+    print "FINISHED !"
 
     tf_confusion_metrics(model, actual_classes, sess, feed_dict={
         feature_data: test_predictors_tf.values,
