@@ -8,6 +8,7 @@ import numpy as np
 import tensorflow as tf
 from pprint import pprint
 from tensorflow.python.lib.io import file_io
+from tensorflow.python.saved_model import tag_constants, signature_constants, signature_def_utils
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -62,6 +63,14 @@ def tf_confusion_metrics(model, actual_classes, session, feed_dict):
     print('F1 Score = ', f1_score)
     print('Accuracy = ', accuracy)
 
+
+def copy_data_to_gs(input_directory, gs_directory):
+
+    action = ['gsutil', '-m', '-q', 'cp', '-r'] + [input_directory] + [gs_directory]
+
+    print "action: {}".format(action)
+
+    subprocess.check_call(action)
 
 def copy_data_to_tmp(input_file):
     """Copies data to /tmp/ and returns glob matching the files."""
@@ -229,7 +238,7 @@ def run_training():
     sess.run(init)
 
     print "Start training..."
-    for i in range(1, 30001):
+    for i in range(1, 301):
         sess.run(training_step, feed_dict={
             feature_data: training_predictors_tf.values,
             actual_classes: training_classes_tf.values.reshape(len(training_classes_tf.values), 2)
@@ -242,14 +251,31 @@ def run_training():
         actual_classes: test_classes_tf.values.reshape(len(test_classes_tf.values), 2)
     })
 
+    print "Saving.. Output dir", FLAGS.output_dir
+    builder = tf.saved_model.builder.SavedModelBuilder("/tmp/foo-123")
+
+    builder.add_meta_graph_and_variables(
+        sess,
+        [tag_constants.SERVING]
+    )
+
+    builder.save()
+
+    copy_data_to_gs("/tmp/foo-123", FLAGS.output_dir)
+
 
 def main(_):
     run_training()
+
+    print "tmp dir after everything"
+    print [x[0] for x in os.walk("/tmp")]
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default=None)
+    parser.add_argument("--output-dir", default=None)
     FLAGS, _ = parser.parse_known_args()
     pprint(FLAGS.data_dir)
+    pprint(FLAGS.output_dir)
     tf.app.run()
