@@ -27,13 +27,13 @@ gcloud ml-engine jobs submit training ${JOB_NAME} \
     --data-dir=${DATA_DIR} \
     --output-dir=${OUTPUT_DIR}
 
-gcloud ml-engine versions delete ${MODEL_VERSION} --model=${MODEL_NAME} -q --verbosity none
-gcloud ml-engine models delete ${MODEL_NAME} -q --verbosity none
-
-gcloud ml-engine models create ${MODEL_NAME} \
-  --regions us-central1
-
-gcloud ml-engine versions create ${MODEL_VERSION} \
-    --model "$MODEL_NAME" \
-    --origin "$OUTPUT_DIR"
+#gcloud ml-engine versions delete ${MODEL_VERSION} --model=${MODEL_NAME} -q --verbosity none
+#gcloud ml-engine models delete ${MODEL_NAME} -q --verbosity none
+#
+#gcloud ml-engine models create ${MODEL_NAME} \
+#  --regions us-central1
+#
+#gcloud ml-engine versions create ${MODEL_VERSION} \
+#    --model "$MODEL_NAME" \
+#    --origin "$OUTPUT_DIR"
 

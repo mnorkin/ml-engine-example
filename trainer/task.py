@@ -254,9 +254,15 @@ def run_training():
     print "Saving.. Output dir", FLAGS.output_dir
     builder = tf.saved_model.builder.SavedModelBuilder("/tmp/foo-123")
 
+    predict = signature_def_utils.predict_signature_def(
+        {"inputs": feature_data},
+        {"outputs": model}
+    )
+
     builder.add_meta_graph_and_variables(
         sess,
-        [tag_constants.SERVING]
+        [tag_constants.SERVING],
+        signature_def_map={"predict": predict}
     )
 
     builder.save()
