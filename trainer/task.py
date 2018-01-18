@@ -65,11 +65,7 @@ def tf_confusion_metrics(model, actual_classes, session, feed_dict):
 
 
 def copy_data_to_gs(input_directory, gs_directory):
-
     action = ['gsutil', '-m', '-q', 'cp', '-r'] + [input_directory] + [gs_directory]
-
-    print "action: {}".format(action)
-
     subprocess.check_call(action)
 
 def copy_data_to_tmp(input_file):
@@ -82,14 +78,10 @@ def copy_data_to_tmp(input_file):
         if not path.startswith('gs://'):
             return input_file
 
-    print [x[0] for x in os.walk("/tmp")]
-
     tmp_path = os.path.join('/tmp/', str(uuid.uuid4()))
     print "tmp_path: {}".format(tmp_path)
 
     action = ['gsutil', '-m', '-q', 'cp', '-r'] + files + [tmp_path]
-
-    print "action: {}".format(action)
 
     os.makedirs(tmp_path)
     subprocess.check_call(action)
@@ -238,7 +230,7 @@ def run_training():
     sess.run(init)
 
     print "Start training..."
-    for i in range(1, 301):
+    for i in range(1, 3001):
         sess.run(training_step, feed_dict={
             feature_data: training_predictors_tf.values,
             actual_classes: training_classes_tf.values.reshape(len(training_classes_tf.values), 2)
@@ -252,7 +244,7 @@ def run_training():
     })
 
     print "Saving.. Output dir", FLAGS.output_dir
-    builder = tf.saved_model.builder.SavedModelBuilder("/tmp/foo-123")
+    builder = tf.saved_model.builder.SavedModelBuilder(FLAGS.output_dir)
 
     predict = signature_def_utils.predict_signature_def(
         {"inputs": feature_data},
@@ -267,21 +259,13 @@ def run_training():
 
     builder.save()
 
-    copy_data_to_gs("/tmp/foo-123", FLAGS.output_dir)
-
 
 def main(_):
     run_training()
-
-    print "tmp dir after everything"
-    print [x[0] for x in os.walk("/tmp")]
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default=None)
     parser.add_argument("--output-dir", default=None)
     FLAGS, _ = parser.parse_known_args()
-    pprint(FLAGS.data_dir)
-    pprint(FLAGS.output_dir)
     tf.app.run()
